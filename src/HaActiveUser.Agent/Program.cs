@@ -39,6 +39,9 @@ Log.Logger = new LoggerConfiguration()
         ConfigPaths.LogFile,
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 14,
+        // A crash loop writes a stack trace per restart; without a cap that fills the disk.
+        fileSizeLimitBytes: 16 * 1024 * 1024,
+        rollOnFileSizeLimit: true,
         shared: true)
     .CreateLogger();
 
@@ -173,6 +176,12 @@ try
     await host.RunAsync();
     return 0;
 }
+catch (ConfigurationException ex)
+{
+    Log.Fatal("Configuration error: {Reason}", ex.Message);
+    Log.Fatal("Fix {Config} and restart the HAActiveUser service.", ConfigPaths.ConfigFile);
+    return 2;
+}
 catch (Exception ex)
 {
     Log.Fatal(ex, "Agent terminated unexpectedly");
@@ -187,6 +196,12 @@ static void ValidateConfiguration(IServiceProvider services)
 {
     var logger = services.GetRequiredService<ILogger<Program>>();
     var options = services.GetRequiredService<IOptions<AgentOptions>>().Value;
+
+    // Resolve secrets here so a bad value is reported as one actionable line, rather than surfacing
+    // as a dependency-injection stack trace when the host starts.
+    var secrets = services.GetRequiredService<ISecretProtector>();
+    secrets.Unprotect(options.Mqtt.ProtectedPassword);
+    secrets.Unprotect(options.Mqtt.Tls.ProtectedClientCertificatePassword);
 
     if (options.Accounts.Count == 0)
     {

@@ -31,16 +31,30 @@ public sealed class DpapiSecretProtector : ISecretProtector
             return null;
         }
 
+        byte[] blob;
         try
         {
-            var bytes = ProtectedData.Unprotect(
-                Convert.FromBase64String(protectedValue), Entropy, DataProtectionScope.LocalMachine);
-            return Encoding.UTF8.GetString(bytes);
+            blob = Convert.FromBase64String(protectedValue);
         }
-        catch (Exception ex) when (ex is FormatException or CryptographicException)
+        catch (FormatException ex)
         {
-            throw new InvalidOperationException(
-                "A protected secret could not be decrypted. Secrets are machine-bound; re-run --set-password on this machine.",
+            // Not a blob at all, so almost always a plaintext password typed into the config file.
+            throw new ConfigurationException(
+                "Mqtt.ProtectedPassword is not a protected secret; it looks like a plaintext value. "
+                + "Do not edit that field by hand - run \"HaActiveUser.Agent.exe --set-password\" from an elevated prompt.",
+                ex);
+        }
+
+        try
+        {
+            return Encoding.UTF8.GetString(
+                ProtectedData.Unprotect(blob, Entropy, DataProtectionScope.LocalMachine));
+        }
+        catch (CryptographicException ex)
+        {
+            throw new ConfigurationException(
+                "Mqtt.ProtectedPassword could not be decrypted. Secrets are bound to the machine that created them, "
+                + "so a config file copied from another machine will not work - re-run --set-password here.",
                 ex);
         }
     }
