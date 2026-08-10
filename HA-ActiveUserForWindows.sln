@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{CB2AE018-F6BC-4E0F-B71A-A706BF1AC85C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaActiveUser.Agent", "src\HaActiveUser.Agent\HaActiveUser.Agent.csproj", "{FA3503F9-3C69-48D7-8C33-FCC6C5839252}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaActiveUser.Agent.Tests", "src\HaActiveUser.Agent.Tests\HaActiveUser.Agent.Tests.csproj", "{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FA3503F9-3C69-48D7-8C33-FCC6C5839252}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA3503F9-3C69-48D7-8C33-FCC6C5839252}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA3503F9-3C69-48D7-8C33-FCC6C5839252}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA3503F9-3C69-48D7-8C33-FCC6C5839252}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{FA3503F9-3C69-48D7-8C33-FCC6C5839252} = {CB2AE018-F6BC-4E0F-B71A-A706BF1AC85C}
+		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF} = {CB2AE018-F6BC-4E0F-B71A-A706BF1AC85C}
+	EndGlobalSection
+EndGlobal

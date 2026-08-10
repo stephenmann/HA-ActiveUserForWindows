@@ -1,0 +1,23 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <PropertyGroup>
+    <OutputName>HAActiveUser</OutputName>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <SuppressIces>ICE61</SuppressIces>
+    <!-- The agent is published as a single file, so the package is one exe and no harvesting. -->
+    <AgentPublishDir Condition="'$(AgentPublishDir)' == ''">$(MSBuildThisFileDirectory)..\src\HaActiveUser.Agent\bin\Release\net8.0-windows\win-x64\publish\</AgentPublishDir>
+    <DefineConstants>AgentPublishDir=$(AgentPublishDir);ProductVersion=$(Version)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
+
+  <Target Name="VerifyAgentPublished" BeforeTargets="Build">
+    <Error
+      Condition="!Exists('$(AgentPublishDir)HaActiveUser.Agent.exe')"
+      Text="Publish the agent first: pwsh ./build/publish-agent.ps1 (expected $(AgentPublishDir)HaActiveUser.Agent.exe)" />
+  </Target>
+
+</Project>

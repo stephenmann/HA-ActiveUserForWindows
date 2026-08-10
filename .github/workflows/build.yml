@@ -1,0 +1,80 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore HA-ActiveUserForWindows.sln
+
+      - name: Build
+        run: dotnet build HA-ActiveUserForWindows.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test HA-ActiveUserForWindows.sln -c Release --no-build --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+
+  package:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Publish agent
+        run: >
+          dotnet publish src/HaActiveUser.Agent/HaActiveUser.Agent.csproj
+          -c Release -r win-x64 --self-contained false
+          -p:PublishSingleFile=true -p:DebugType=None
+
+      - name: Build MSI
+        run: dotnet build installer/HaActiveUser.Installer.wixproj -c Release
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: HAActiveUser-msi
+          path: installer/bin/Release/*.msi
+
+  release:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: HAActiveUser-msi
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.msi
+          generate_release_notes: true

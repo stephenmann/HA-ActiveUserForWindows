@@ -1,0 +1,18 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+TestResults/
+
+## Rider / VS
+.idea/
+.vs/
+
+## WiX
+installer/bin/
+installer/obj/
+
+## Local
+*.log
+.github/plans

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package
+    Name="HA Active User for Windows"
+    Manufacturer="HA Active User for Windows"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="7b1f7a2e-2a45-4c1c-9a4a-3c0f2a1d5b61"
+    Scope="perMachine"
+    Compressed="yes">
+
+    <SummaryInformation Description="Reports Windows session activity to Home Assistant over MQTT." />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Launch
+      Condition="VersionNT64"
+      Message="[ProductName] requires 64-bit Windows." />
+
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="HA Active User" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="DATAFOLDER" Name="HAActiveUser">
+        <Directory Id="LOGFOLDER" Name="logs" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Agent" Title="HA Active User agent" Level="1">
+      <ComponentGroupRef Id="AgentComponents" />
+    </Feature>
+
+    <ComponentGroup Id="AgentComponents">
+
+      <Component Id="AgentExecutable" Directory="INSTALLFOLDER" Bitness="always64">
+        <File Id="AgentExe" Source="$(var.AgentPublishDir)HaActiveUser.Agent.exe" KeyPath="yes" />
+
+        <ServiceInstall
+          Id="AgentService"
+          Name="HAActiveUser"
+          DisplayName="HA Active User"
+          Description="Publishes Windows session activity to Home Assistant for room occupancy."
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Account="LocalSystem"
+          Vital="yes">
+          <!-- Transient broker and network failures are expected; recover rather than stay dead. -->
+          <util:ServiceConfig
+            FirstFailureActionType="restart"
+            SecondFailureActionType="restart"
+            ThirdFailureActionType="restart"
+            RestartServiceDelayInSeconds="60"
+            ResetPeriodInDays="1" />
+        </ServiceInstall>
+
+        <ServiceControl
+          Id="AgentServiceControl"
+          Name="HAActiveUser"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+
+      <!--
+        The configuration file holds a DPAPI-protected broker password. Machine-scope DPAPI can be
+        decrypted by anything running on the box, so the directory is locked to SYSTEM and admins.
+      -->
+      <Component Id="DataFolder" Directory="DATAFOLDER" Guid="0c9c2f18-6a7c-4a2f-9e0e-4a2b5e0f1c33">
+        <CreateFolder>
+          <PermissionEx Sddl="O:BAG:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" />
+        </CreateFolder>
+        <RegistryValue
+          Root="HKLM"
+          Key="SOFTWARE\HAActiveUser"
+          Name="DataFolder"
+          Type="string"
+          Value="[DATAFOLDER]"
+          KeyPath="yes" />
+        <RemoveFolder Id="RemoveDataFolder" On="uninstall" />
+      </Component>
+
+      <Component Id="LogFolder" Directory="LOGFOLDER" Guid="3f6a1d84-5f2b-4f8e-9f31-8f5c2a7d4e10">
+        <CreateFolder />
+        <RemoveFolder Id="RemoveLogFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKLM"
+          Key="SOFTWARE\HAActiveUser"
+          Name="LogFolder"
+          Type="string"
+          Value="[LOGFOLDER]"
+          KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!--
+      Clear the retained discovery topic on uninstall, otherwise Home Assistant keeps the device and
+      its entities forever. Failure is ignored so an unreachable broker cannot block uninstall.
+    -->
+    <CustomAction
+      Id="RemoveFromHomeAssistant"
+      Directory="INSTALLFOLDER"
+      ExeCommand="&quot;[INSTALLFOLDER]HaActiveUser.Agent.exe&quot; --remove-from-ha"
+      Execute="deferred"
+      Impersonate="no"
+      Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="RemoveFromHomeAssistant" Before="StopServices" Condition="REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+
+  </Package>
+
+</Wix>
