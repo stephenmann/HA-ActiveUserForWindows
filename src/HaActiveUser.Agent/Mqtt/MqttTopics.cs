@@ -10,7 +10,7 @@ public sealed class MqttTopics
         Discovery = $"{Slug.Make(discoveryPrefix)}/device/{device.DiscoveryObjectId}/config";
     }
 
-    /// <summary>Published as <c>~</c> in the discovery payload so component topics stay short.</summary>
+    /// <summary>Root of this machine's state topics.</summary>
     public string Base { get; }
 
     public string Discovery { get; }

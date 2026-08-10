@@ -8,6 +8,7 @@ using HaActiveUser.Agent.Location;
 using HaActiveUser.Agent.Mqtt;
 using HaActiveUser.Agent.Presence;
 using HaActiveUser.Agent.Sessions;
+using HaActiveUser.Agent.Sessions.UserInput;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -60,7 +61,17 @@ try
     builder.Services.AddSingleton<SystemEventBus>();
     builder.Services.AddSingleton<IClock, SystemClock>();
     builder.Services.AddSingleton<ISecretProtector, DpapiSecretProtector>();
-    builder.Services.AddSingleton<ISessionProvider, WtsSessionProvider>();
+
+    builder.Services.AddSingleton<IUserInputTracker>(sp =>
+        new UserInputTracker(sp.GetRequiredService<IClock>()));
+    builder.Services.AddSingleton<WtsSessionProvider>();
+    builder.Services.AddSingleton<ISessionProvider>(sp => new ReportedInputSessionProvider(
+        sp.GetRequiredService<WtsSessionProvider>(),
+        sp.GetRequiredService<IUserInputTracker>(),
+        sp.GetRequiredService<ILogger<ReportedInputSessionProvider>>()));
+    builder.Services.AddHostedService(sp => new UserInputPipeServer(
+        sp.GetRequiredService<IUserInputTracker>(),
+        sp.GetRequiredService<ILogger<UserInputPipeServer>>()));
 
     builder.Services.AddSingleton<IDeviceProfileDetector>(sp => new DeviceProfileDetector(
         sp.GetRequiredService<IOptions<AgentOptions>>().Value.DeviceProfile,

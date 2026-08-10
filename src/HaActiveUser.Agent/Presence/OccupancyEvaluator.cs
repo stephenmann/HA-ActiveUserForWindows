@@ -119,7 +119,7 @@ public sealed class OccupancyEvaluator
         return new PresenceState(
             PersonKey: person.PersonKey,
             DisplayName: person.DisplayName,
-            IsOccupied: isActive && locationOk,
+            IsOccupied: isActive,
             IsSignedIn: sessions.Count > 0,
             IsLocked: best?.IsLocked ?? false,
             IdleSeconds: idleSeconds == int.MaxValue ? -1 : idleSeconds,

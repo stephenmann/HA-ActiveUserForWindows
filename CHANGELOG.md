@@ -3,6 +3,24 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Devices never appeared in Home Assistant.** The discovery payload declared a `~` base topic at the
+  root and referenced it from every component. Device discovery accepts only a fixed set of shared root
+  options — availability, `origin`, `command_topic`, `state_topic`, `qos`, `encoding` — so the payload
+  failed validation and was discarded without creating a device. Topics are now fully qualified.
+- **Fresh installs seeded an unusable account mapping.** The default config took `Environment.UserName`,
+  but it is written by the service under LocalSystem, so it recorded the machine account (`MACHINE$`).
+  No interactive session could ever match it, and presence silently stayed off. The default is now
+  taken from the signed-in session and records the SID.
+- **A plaintext password in the config crash-looped the service.** `Mqtt.ProtectedPassword` expects a
+  DPAPI blob; a hand-typed value threw inside a DI factory during host start, producing a stack trace
+  every 30 seconds. Secrets are now validated before startup and reported as a single actionable line,
+  with distinct messages for a plaintext value and a blob from another machine.
+- Log files are capped at 16 MB with rollover. A crash loop previously grew the daily log without bound.
+
 ## [1.0.0] - 2026-08-10
 
 First public release.

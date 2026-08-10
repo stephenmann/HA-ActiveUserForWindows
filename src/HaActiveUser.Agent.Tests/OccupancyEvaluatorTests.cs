@@ -145,18 +145,19 @@ public class OccupancyEvaluatorTests
     }
 
     [Fact]
-    public void LaptopActiveButAwayIsNotOccupied()
+    public void LaptopActiveButAwayIsStillOccupiedAndReportsAway()
     {
         var result = Build.Evaluator().Evaluate(
             Input([Build.Session()], Build.Away(), DeviceProfile.Laptop));
 
+        // Occupancy follows input and lock state only; location decides which room it counts for.
         var person = Assert.Single(result);
-        Assert.False(person.IsOccupied);
+        Assert.True(person.IsOccupied);
         Assert.Equal(RoomNames.Away, person.Room);
     }
 
     [Fact]
-    public void DesktopIgnoresTheLocationGate()
+    public void DesktopAwayReportsTheConfiguredRoom()
     {
         var result = Build.Evaluator().Evaluate(
             Input([Build.Session()], Build.Away(), DeviceProfile.Desktop));
@@ -167,32 +168,36 @@ public class OccupancyEvaluatorTests
     }
 
     [Fact]
-    public void UnknownLocationOnALaptopReportsUnknownAndNoOccupancy()
+    public void UnknownLocationOnALaptopReportsUnknownRoom()
     {
         var result = Build.Evaluator().Evaluate(
             Input([Build.Session()], Build.UnknownLocation(), DeviceProfile.Laptop));
 
         var person = Assert.Single(result);
-        Assert.False(person.IsOccupied);
+        Assert.True(person.IsOccupied);
         Assert.Equal(RoomNames.Unknown, person.Room);
     }
 
     [Fact]
-    public void ExplicitlyDisablingTheGateOverridesTheLaptopDefault()
+    public void DisablingTheGateReportsTheConfiguredRoomEvenWhenAway()
     {
         var result = Build.Evaluator(requireGate: false).Evaluate(
             Input([Build.Session()], Build.Away(), DeviceProfile.Laptop));
 
-        Assert.True(Assert.Single(result).IsOccupied);
+        var person = Assert.Single(result);
+        Assert.True(person.IsOccupied);
+        Assert.Equal("Office", person.Room);
     }
 
     [Fact]
-    public void ExplicitlyEnablingTheGateAppliesToDesktops()
+    public void EnablingTheGateReportsAwayOnADesktop()
     {
         var result = Build.Evaluator(requireGate: true).Evaluate(
             Input([Build.Session()], Build.Away(), DeviceProfile.Desktop));
 
-        Assert.False(Assert.Single(result).IsOccupied);
+        var person = Assert.Single(result);
+        Assert.True(person.IsOccupied);
+        Assert.Equal(RoomNames.Away, person.Room);
     }
 
     [Fact]

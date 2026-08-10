@@ -29,7 +29,7 @@ Each machine becomes one Home Assistant device with these entities.
 
 | Entity | Platform | Notes |
 | --- | --- | --- |
-| `<Person> occupancy` | `binary_sensor` (`occupancy`) | The signal you automate on. |
+| `<Person> occupancy` | `binary_sensor` (`occupancy`) | The signal you automate on. Input and lock state only. |
 | `<Person> room` | `sensor` | Resolved room, or `away` / `unknown`. |
 | `<Person> screen locked` | `binary_sensor` | Diagnostic. |
 | `<Person> idle time` | `sensor` (`duration`, seconds) | Diagnostic. |
@@ -46,7 +46,7 @@ Home Assistant break ties when the same person is reported by more than one mach
 
 ```mermaid
 flowchart TD
-    A[WTSEnumerateSessions] --> B[WTSQuerySessionInformation<br/>WTSSessionInfoEx]
+    A[Per-session helper<br/>GetLastInputInfo] --> B[Service session 0<br/>WTSEnumerateSessions + lock state]
     B --> C{Attached, unlocked,<br/>input within idle threshold?}
     C -- no --> D[Away grace timer]
     C -- yes --> E[Active]
@@ -58,17 +58,33 @@ flowchart TD
     I[Dock / monitor device ID] --> J
     J --> K[Location stabilizer<br/>away grace + resume settle]
 
-    E --> L{Location gate required<br/>and at home?}
-    K --> L
-    L -- yes --> M[occupancy ON<br/>room = configured room]
-    L -- no --> N[occupancy OFF<br/>room = away / unknown]
+    E --> M[occupancy ON]
+    K --> L{Location gate required<br/>and at home?}
+    L -- yes --> N[room = configured room]
+    L -- no --> O[room = away / unknown]
 ```
+
+Occupancy answers one question: *is someone using this machine right now?* It depends only on input
+and lock state. Location decides which **room** that activity is attributed to, not whether it
+counts.
 
 ### Session sensing
 
-The service runs in **session 0**, so `GetLastInputInfo` is unusable — it only ever reports session
-0's own input. The agent uses `WTSQuerySessionInformationW(..., WTSSessionInfoEx)` instead, which
-returns `LastInputTime`, the lock flag and the account for *every* session.
+This is the part Windows makes awkward. `GetLastInputInfo` is per-session, and the service runs in
+**session 0**, so from there it only ever reports session 0's own input. The obvious alternative,
+`WTSQuerySessionInformationW(..., WTSSessionInfoEx)`, returns a `LastInputTime` that is **frozen at
+logon for local console sessions** — it only advances for remote/RDP sessions.
+
+So the installer registers a lightweight per-user helper (`--session-agent`) at logon. It runs inside
+the interactive session, where `GetLastInputInfo` works, and reports its own idle time to the service
+every few seconds over a named pipe. The service attributes each report to the SID of the connecting
+process, so a user can only ever report their own state.
+
+The service still uses WTS for everything that *is* reliable from session 0: which sessions exist,
+their accounts, connect state and lock flag.
+
+Reports older than 30 seconds are discarded, so a helper that dies reads as "no data" rather than
+"idle forever". A session with no helper reporting never counts as occupied.
 
 A session counts as active when all of the following hold:
 
@@ -82,9 +98,9 @@ does not flap the sensor.
 
 ### The location gate
 
-A desktop that is in use is, by definition, in its room. A laptop is not — it might be in a café.
-So for laptops the agent additionally requires proof that the machine is physically at home before
-it will report occupancy.
+A desktop that is in use is, by definition, in its room. A laptop is not — it might be in a café. So
+for laptops the agent requires proof that the machine is physically at home before it will attribute
+activity to the configured room; without that proof the room is reported as `away` or `unknown`.
 
 `Windows.Devices.Geolocation` is deliberately **not** used: it needs interactive per-user consent
 that cannot be granted from session 0, and its Wi-Fi/IP-derived accuracy is 100 m to 5 km — useless
@@ -98,7 +114,7 @@ for room-level presence. Network identity is used instead:
 
 Strategies that cannot form an opinion (no Wi-Fi adapter, no gateway) return *indeterminate* and are
 excluded from the decision rather than voting "away". If every strategy is indeterminate, the
-location is `unknown` and a gated device reports no occupancy.
+location is `unknown` and a gated device reports its room as `unknown`.
 
 `MatchMode` is `Any` (default) or `All`.
 
@@ -189,6 +205,12 @@ template:
 2. Edit `C:\ProgramData\HAActiveUser\config.json`.
 3. Set the broker password: `"C:\Program Files\HA Active User\HaActiveUser.Agent.exe" --set-password`
 4. Restart the service: `Restart-Service HAActiveUser`
+5. Sign out and back in, so the per-user idle helper starts. Without it the service has no idle
+   data and reports no occupancy.
+
+Releases are Authenticode-signed through Azure Artifact Signing when the repository is configured
+for it — see [Release signing](#release-signing). A build made before that was set up, or from a
+fork without the credentials, is unsigned and will raise a SmartScreen warning on install.
 
 The service runs as `LocalSystem`. `C:\ProgramData\HAActiveUser` is ACLed to SYSTEM and
 Administrators only, because the config holds a machine-scope DPAPI secret that anything running on
@@ -274,6 +296,44 @@ becomes `stephen_flowers`.
 
 Changes are picked up on save; restart the service if the entity set changed.
 
+### Broker transport security
+
+**The defaults are cleartext.** `Port` is 1883 and `Tls.Enabled` is `false`, so the broker username
+and password are sent unencrypted on every connect, and every presence update is readable by anyone
+who can see the traffic — which also tells them exactly when you are at your desk.
+
+That is a reasonable default on a trusted home LAN. Turn TLS on if the broker is reachable from
+anything you do not control, or if the network carries guest, rented or IoT devices:
+
+```jsonc
+"Mqtt": {
+  "Port": 8883,
+  "Tls": { "Enabled": true }
+}
+```
+
+If your broker uses a private CA (the usual case for a self-hosted Home Assistant), install that CA
+into the **Windows machine trust store** (`Cert:\LocalMachine\Root`). The service runs as
+`LocalSystem` and validates against the OS trust store, so this is what actually makes validation
+succeed:
+
+```powershell
+Import-Certificate -FilePath .\ca.crt -CertStoreLocation Cert:\LocalMachine\Root
+```
+
+Do **not** reach for `AllowUntrustedCertificates`, `IgnoreCertificateChainErrors` or
+`IgnoreCertificateRevocationErrors` to make a stubborn broker connect. Each of them disables the
+check that TLS exists to perform, which re-opens the machine-in-the-middle you just turned TLS on to
+close. They are there for lab use.
+
+Two further notes:
+
+- Use a **dedicated MQTT account** for the agent, restricted to the `haactiveuser/#` and
+  `homeassistant/#` topics. The broker password is stored with machine-scope DPAPI, which means any
+  administrator on the machine can recover it — so it should not be an account you reuse elsewhere.
+- `ProtectedPassword` is written only by `--set-password`. The secret is bound to the machine that
+  created it; copying a config file to another machine will not work.
+
 ### Command-line helpers
 
 ```powershell
@@ -283,6 +343,7 @@ $agent = "C:\Program Files\HA Active User\HaActiveUser.Agent.exe"
 & $agent --list-accounts       # signed-in accounts with their SIDs
 & $agent --list-devices dock   # present PnP devices, filtered
 & $agent --remove-from-ha      # delete this device and its entities from Home Assistant
+& $agent --session-agent       # report this session's idle time; started at logon by the installer
 ```
 
 ### Finding the identifiers
@@ -350,8 +411,7 @@ its birth message, after a short random delay so a house full of agents does not
     "sa": "Office"
   },
   "o": { "name": "ha-activeuser-windows", "sw": "1.0.0", "url": "https://github.com/stephenmann/HA-ActiveUserForWindows" },
-  "~": "haactiveuser/a1b2c3d4",
-  "avty_t": "~/status",
+  "avty_t": "haactiveuser/a1b2c3d4/status",
   "pl_avail": "online",
   "pl_not_avail": "offline",
   "qos": 1,
@@ -360,16 +420,20 @@ its birth message, after a short random delay so a house full of agents does not
       "p": "binary_sensor",
       "name": "Stephen occupancy",
       "uniq_id": "haau_a1b2c3d4_stephen_occupancy",
-      "stat_t": "~/person/stephen/occupancy",
+      "stat_t": "haactiveuser/a1b2c3d4/person/stephen/occupancy",
       "pl_on": "ON",
       "pl_off": "OFF",
       "dev_cla": "occupancy",
-      "json_attr_t": "~/person/stephen/attributes"
+      "json_attr_t": "haactiveuser/a1b2c3d4/person/stephen/attributes"
     }
     // ... one entry per entity
   }
 }
 ```
+
+Topics are written out in full. Device discovery only accepts a fixed set of shared root options —
+availability, `origin`, `command_topic`, `state_topic`, `qos` and `encoding` — and the `~` base-topic
+abbreviation is **not** one of them. Including it makes Home Assistant discard the entire payload.
 
 `sa` (`suggested_area`) is only a **creation-time hint**. It cannot move a device between areas
 later; do that in the Home Assistant UI.
@@ -389,8 +453,16 @@ later; do that in the Home Assistant UI.
 
 ## Troubleshooting
 
-**Occupancy never turns on.** The device was detected as a laptop, so the location gate applies, but
-no Wi-Fi, gateway or dock identifiers are configured. The log warns about this at startup. Configure
+**Occupancy never turns on.** The per-user helper is not running, so the service has no idle data and
+deliberately reports nobody home. It is registered at logon by the installer, so sign out and back in
+after installing, or start it once by hand:
+
+```powershell
+& "C:\Program Files\HA Active User\HaActiveUser.Agent.exe" --session-agent
+```
+
+**The room says `away` or `unknown` on a laptop.** The location gate applies to laptops but no Wi-Fi,
+gateway or dock identifiers are configured. The log warns about this at startup. Configure
 `HomeLocation`, or set `"RequireForOccupancy": false`.
 
 **No entities appear.** Check `Accounts` is not empty, then check the broker: the retained discovery
@@ -399,12 +471,63 @@ message should be on `homeassistant/device/<device>/config`.
 **A person shows as occupied on the wrong machine.** Both machines are reporting truthfully — use
 the Group helper and the template sensor above rather than trying to make one agent yield.
 
-**Idle time never rises.** `WTSINFOEX.LastInputTime` can be zero on some session types; the agent
-reports `-1` internally and publishes `0`. Check the session actually shows as `Active` with
-`--list-accounts`.
+**Idle time never rises, or sits at 0.** The idle figure comes from the per-user helper, not from
+Windows' per-session bookkeeping. Check the helper is running (`--session-agent`, one instance per
+signed-in user) and that the session shows as `Active` with `--list-accounts`.
 
 **The device is stuck in Home Assistant after uninstall.** Publish an empty retained payload to
 `homeassistant/device/<device>/config`, or reinstall and run `--remove-from-ha`.
+
+---
+
+## Release signing
+
+The `package` job signs the agent executable and then the MSI using **Azure Artifact Signing** (the
+service previously called Trusted Signing). Both steps are skipped unless `AZURE_CLIENT_ID` is set,
+so the workflow still builds unsigned on a fork.
+
+Authentication uses OIDC rather than a stored credential: the job requests a short-lived token from
+GitHub and Azure exchanges it for one scoped to the certificate profile. Nothing long-lived is kept
+in the repository, which is the point — a leaked client secret would let anyone sign code as you.
+
+### One-time Azure setup
+
+1. Register an app in Entra ID and add a **federated credential** of type *GitHub Actions*, with the
+   entity matching how you release (`Branch: main`, or `Tag: v*`, or `Environment`). The subject must
+   match the triggering ref or Azure refuses the exchange.
+2. Grant that app the **Artifact Signing Certificate Profile Signer** role on the signing account or,
+   more narrowly, on the certificate profile itself. This role is required; Owner and Contributor do
+   not imply it.
+
+### Repository configuration
+
+Secrets (**Settings → Secrets and variables → Actions → Secrets**):
+
+| Secret | Value |
+| --- | --- |
+| `AZURE_CLIENT_ID` | Application (client) ID of the app registration |
+| `AZURE_TENANT_ID` | Directory (tenant) ID |
+| `AZURE_SUBSCRIPTION_ID` | Subscription holding the signing account |
+
+Variables (**same page → Variables**) — not secret, they just vary per account:
+
+| Variable | Value |
+| --- | --- |
+| `AZURE_SIGNING_ENDPOINT` | Region endpoint, e.g. `https://eus.codesigning.azure.net` |
+| `AZURE_SIGNING_ACCOUNT` | Signing account name |
+| `AZURE_SIGNING_PROFILE` | Certificate profile name |
+
+The endpoint region must match the region the account **and** profile were created in. A mismatch
+fails as a 403 rather than as anything that names the real problem.
+
+### Things that will bite you
+
+- Certificates issued by the service are valid for **three days**. The workflow timestamps against
+  `http://timestamp.acs.microsoft.com`; without that a signature would go invalid almost immediately.
+- A Public Trust profile requires completed identity validation, and the certificate subject is taken
+  from that validated identity — you cannot set it yourself.
+- SmartScreen reputation accrues per publisher identity, so the first few signed releases may still
+  warn.
 
 ---
 

@@ -14,9 +14,11 @@ jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to commit SHAs: a tag can be moved, and the release job below can write
+      # to the repository. Update these deliberately, not automatically.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
 
@@ -31,7 +33,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-results
           path: TestResults
@@ -39,10 +41,17 @@ jobs:
   package:
     needs: test
     runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write # Mint the OIDC token that Azure exchanges for a signing credential.
+    env:
+      # False until the Azure secrets exist, which makes the signing steps no-ops. Evaluated here
+      # because the secrets context is not available in a step-level `if`.
+      SIGNING_ENABLED: ${{ secrets.AZURE_CLIENT_ID != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
 
@@ -52,11 +61,46 @@ jobs:
           -c Release -r win-x64 --self-contained false
           -p:PublishSingleFile=true -p:DebugType=None
 
+      - name: Azure login
+        if: env.SIGNING_ENABLED == 'true'
+        uses: azure/login@858f4093d287a904987dfd22abd163280f939550 # v3.0.1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Signed before the MSI is built so the packaged copy carries the signature.
+      - name: Sign agent
+        if: env.SIGNING_ENABLED == 'true'
+        uses: azure/artifact-signing-action@208f8af4bf26cf2af8597424e3cb5582801523ba # v2.0.0
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\src\HaActiveUser.Agent\bin\Release\net8.0-windows\win-x64\publish\HaActiveUser.Agent.exe
+          file-digest: SHA256
+          # Certificates are valid for three days, so an untimestamped signature expires almost
+          # immediately. This is not optional.
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       - name: Build MSI
         run: dotnet build installer/HaActiveUser.Installer.wixproj -c Release
 
+      - name: Sign MSI
+        if: env.SIGNING_ENABLED == 'true'
+        uses: azure/artifact-signing-action@208f8af4bf26cf2af8597424e3cb5582801523ba # v2.0.0
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\installer\bin\Release\HAActiveUser.msi
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       - name: Upload MSI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: HAActiveUser-msi
           path: installer/bin/Release/*.msi
@@ -68,13 +112,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: HAActiveUser-msi
           path: artifacts
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: artifacts/*.msi
           generate_release_notes: true

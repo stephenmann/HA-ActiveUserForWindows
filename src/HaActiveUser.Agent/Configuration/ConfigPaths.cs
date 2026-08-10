@@ -3,6 +3,8 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using HaActiveUser.Agent.Sessions;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HaActiveUser.Agent.Configuration;
 
@@ -83,15 +85,7 @@ public static class ConfigDirectoryInitializer
                 ["IdleThresholdSeconds"] = 600,
                 ["AwayGraceSeconds"] = 60,
                 ["PollIntervalSeconds"] = 10,
-                ["Accounts"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["Account"] = Environment.UserName,
-                        ["PersonKey"] = "person1",
-                        ["DisplayName"] = Environment.UserName
-                    }
-                },
+                ["Accounts"] = DefaultAccounts(),
                 ["HomeLocation"] = new JsonObject
                 {
                     ["MatchMode"] = nameof(LocationMatchMode.Any),
@@ -121,5 +115,41 @@ public static class ConfigDirectoryInitializer
         };
 
         return document.ToJsonString(WriteOptions);
+    }
+
+    /// <summary>
+    /// Seeds the account mapping from the signed-in user. This runs as LocalSystem, where
+    /// <see cref="Environment.UserName"/> is the machine account and would never match a session.
+    /// </summary>
+    private static JsonArray DefaultAccounts()
+    {
+        var accounts = new JsonArray();
+
+        SessionSnapshot? session = null;
+        try
+        {
+            session = new WtsSessionProvider(NullLogger<WtsSessionProvider>.Instance)
+                .GetSessions()
+                .Where(candidate => !string.IsNullOrEmpty(candidate.Sid))
+                .OrderByDescending(candidate => candidate.IsAttached)
+                .FirstOrDefault();
+        }
+        catch (Exception)
+        {
+            // Best effort only; --list-accounts fills this in.
+        }
+
+        if (session is not null)
+        {
+            accounts.Add(new JsonObject
+            {
+                ["Sid"] = session.Sid,
+                ["Account"] = session.Account,
+                ["PersonKey"] = "person1",
+                ["DisplayName"] = session.Account
+            });
+        }
+
+        return accounts;
     }
 }

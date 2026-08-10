@@ -6,6 +6,7 @@ using HaActiveUser.Agent.Identity;
 using HaActiveUser.Agent.Location;
 using HaActiveUser.Agent.Mqtt;
 using HaActiveUser.Agent.Sessions;
+using HaActiveUser.Agent.Sessions.UserInput;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -33,9 +34,22 @@ public static class CommandLine
             "--list-accounts" => ListAccounts(),
             "--list-devices" => ListDevices(args.Skip(1).FirstOrDefault()),
             "--remove-from-ha" => RemoveFromHomeAssistant(),
+            "--session-agent" => RunSessionAgent(),
             "--help" or "-h" or "/?" => ShowHelp(),
             _ => ShowHelp()
         };
+    }
+
+    private static int RunSessionAgent()
+    {
+        using var stopping = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            stopping.Cancel();
+        };
+
+        return SessionAgent.RunAsync(stopping.Token).GetAwaiter().GetResult();
     }
 
     private static int ShowHelp()
@@ -48,6 +62,8 @@ public static class CommandLine
               --list-devices    List present PnP devices, for HomeLocation.DockDeviceIds.
                                 Pass a filter to narrow the list, e.g. --list-devices dock
               --remove-from-ha  Delete this machine's device and entities from Home Assistant.
+              --session-agent   Report this session's idle time to the service. Started at logon
+                                by the installer; not intended to be run by hand.
 
             Run with no arguments to start the service.
             Config file: 
@@ -114,11 +130,15 @@ public static class CommandLine
             return 0;
         }
 
-        Console.WriteLine($"{"Session",-8} {"Account",-32} {"State",-14} {"Locked",-7} SID");
+        Console.WriteLine($"{"Session",-8} {"Account",-28} {"State",-12} {"Locked",-7} {"Idle",-12} SID");
         foreach (var session in sessions)
         {
+            var idle = session.LastInputUtc is { } lastInput
+                ? $"{(DateTimeOffset.UtcNow - lastInput).TotalSeconds:F0}s"
+                : "unreported";
+
             Console.WriteLine(
-                $"{session.SessionId,-8} {session.Account,-32} {session.ConnectState,-14} {session.IsLocked,-7} {session.Sid}");
+                $"{session.SessionId,-8} {session.Account,-28} {session.ConnectState,-12} {session.IsLocked,-7} {idle,-12} {session.Sid}");
         }
 
         Console.WriteLine();

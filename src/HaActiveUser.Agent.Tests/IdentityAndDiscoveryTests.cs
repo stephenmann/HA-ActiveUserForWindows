@@ -125,12 +125,18 @@ public class DiscoveryPayloadBuilderTests
     }
 
     [Fact]
-    public void UsesTheBaseTopicAbbreviation()
+    public void TopicsAreFullyQualifiedBecauseDeviceDiscoveryIgnoresTheBaseTopic()
     {
         var payload = BuildPayload();
 
-        Assert.Equal("haactiveuser/abc123", payload.GetProperty("~").GetString());
-        Assert.Equal("~/status", payload.GetProperty("avty_t").GetString());
+        // "~" is not a supported shared option for device discovery; HA rejects the whole payload.
+        Assert.False(payload.TryGetProperty("~", out _));
+        Assert.Equal("haactiveuser/abc123/status", payload.GetProperty("avty_t").GetString());
+
+        foreach (var component in payload.GetProperty("cmps").EnumerateObject())
+        {
+            Assert.StartsWith("haactiveuser/abc123/", component.Value.GetProperty("stat_t").GetString());
+        }
     }
 
     [Fact]
@@ -152,8 +158,8 @@ public class DiscoveryPayloadBuilderTests
 
         Assert.Equal("binary_sensor", occupancy.GetProperty("p").GetString());
         Assert.Equal("occupancy", occupancy.GetProperty("dev_cla").GetString());
-        Assert.Equal("~/person/stephen/occupancy", occupancy.GetProperty("stat_t").GetString());
-        Assert.Equal("~/person/stephen/attributes", occupancy.GetProperty("json_attr_t").GetString());
+        Assert.Equal("haactiveuser/abc123/person/stephen/occupancy", occupancy.GetProperty("stat_t").GetString());
+        Assert.Equal("haactiveuser/abc123/person/stephen/attributes", occupancy.GetProperty("json_attr_t").GetString());
     }
 
     [Fact]

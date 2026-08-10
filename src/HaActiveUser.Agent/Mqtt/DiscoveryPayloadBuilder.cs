@@ -55,8 +55,9 @@ public sealed class DiscoveryPayloadBuilder
                 ["sw"] = Version,
                 ["url"] = OriginUrl
             },
-            ["~"] = _topics.Base,
-            ["avty_t"] = "~/status",
+            // Device discovery only honours a fixed set of shared root options, and "~" is not one of
+            // them, so component topics must be fully qualified.
+            ["avty_t"] = _topics.Availability,
             ["pl_avail"] = MqttTopics.Online,
             ["pl_not_avail"] = MqttTopics.Offline,
             ["qos"] = 1,
@@ -76,14 +77,14 @@ public sealed class DiscoveryPayloadBuilder
             ["active_user"] = Sensor(
                 key: "active_user",
                 name: "Active user",
-                stateTopic: "~/active_user",
+                stateTopic: _topics.ActiveUser,
                 icon: "mdi:account",
                 diagnostic: true),
 
             ["at_home"] = BinarySensor(
                 key: "at_home",
                 name: "At home location",
-                stateTopic: "~/at_home",
+                stateTopic: _topics.AtHome,
                 deviceClass: null,
                 icon: "mdi:home-map-marker",
                 diagnostic: true),
@@ -91,19 +92,19 @@ public sealed class DiscoveryPayloadBuilder
             ["network_location"] = Sensor(
                 key: "network_location",
                 name: "Network location",
-                stateTopic: "~/network_location",
+                stateTopic: _topics.NetworkLocation,
                 icon: "mdi:map-marker-radius",
                 diagnostic: true)
         };
 
         foreach (var person in people)
         {
-            var attributes = $"~/person/{person.PersonKey}/attributes";
+            var attributes = _topics.Attributes(person.PersonKey);
 
             components[$"{person.PersonKey}_occupancy"] = BinarySensor(
                 key: $"{person.PersonKey}_occupancy",
                 name: $"{person.DisplayName} occupancy",
-                stateTopic: $"~/person/{person.PersonKey}/occupancy",
+                stateTopic: _topics.Occupancy(person.PersonKey),
                 deviceClass: "occupancy",
                 icon: null,
                 diagnostic: false,
@@ -112,7 +113,7 @@ public sealed class DiscoveryPayloadBuilder
             components[$"{person.PersonKey}_room"] = Sensor(
                 key: $"{person.PersonKey}_room",
                 name: $"{person.DisplayName} room",
-                stateTopic: $"~/person/{person.PersonKey}/room",
+                stateTopic: _topics.Room(person.PersonKey),
                 icon: "mdi:floor-plan",
                 diagnostic: false,
                 attributesTopic: attributes);
@@ -120,7 +121,7 @@ public sealed class DiscoveryPayloadBuilder
             components[$"{person.PersonKey}_locked"] = BinarySensor(
                 key: $"{person.PersonKey}_locked",
                 name: $"{person.DisplayName} screen locked",
-                stateTopic: $"~/person/{person.PersonKey}/locked",
+                stateTopic: _topics.Locked(person.PersonKey),
                 deviceClass: null,
                 icon: "mdi:lock",
                 diagnostic: true);
@@ -128,7 +129,7 @@ public sealed class DiscoveryPayloadBuilder
             var idle = Sensor(
                 key: $"{person.PersonKey}_idle",
                 name: $"{person.DisplayName} idle time",
-                stateTopic: $"~/person/{person.PersonKey}/idle",
+                stateTopic: _topics.Idle(person.PersonKey),
                 icon: "mdi:timer-sand",
                 diagnostic: true);
 

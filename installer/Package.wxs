@@ -66,6 +66,17 @@
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
+
+        <!--
+          The service runs in session 0, where GetLastInputInfo only sees session 0. Each interactive
+          user runs a helper that reports its own idle time back over a named pipe.
+        -->
+        <RegistryValue
+          Root="HKLM"
+          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+          Name="HAActiveUserSessionAgent"
+          Type="string"
+          Value="&quot;[INSTALLFOLDER]HaActiveUser.Agent.exe&quot; --session-agent" />
       </Component>
 
       <!--
