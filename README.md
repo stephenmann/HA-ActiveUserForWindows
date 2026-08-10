@@ -349,7 +349,7 @@ its birth message, after a short random delay so a house full of agents does not
     "sw": "1.0.0",
     "sa": "Office"
   },
-  "o": { "name": "ha-activeuser-windows", "sw": "1.0.0", "url": "https://github.com/stephen/HA-ActiveUserForWindows" },
+  "o": { "name": "ha-activeuser-windows", "sw": "1.0.0", "url": "https://github.com/stephenmann/HA-ActiveUserForWindows" },
   "~": "haactiveuser/a1b2c3d4",
   "avty_t": "~/status",
   "pl_avail": "online",

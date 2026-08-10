@@ -14,7 +14,7 @@ public sealed class DiscoveryPayloadBuilder
 {
     private const string Manufacturer = "HA Active User for Windows";
     private const string OriginName = "ha-activeuser-windows";
-    private const string OriginUrl = "https://github.com/stephen/HA-ActiveUserForWindows";
+    private const string OriginUrl = "https://github.com/stephenmann/HA-ActiveUserForWindows";
 
     private static readonly string Version =
         Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
