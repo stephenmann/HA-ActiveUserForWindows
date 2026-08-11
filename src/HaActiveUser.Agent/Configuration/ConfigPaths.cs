@@ -18,6 +18,12 @@ public static class ConfigPaths
     public static string LogDirectory => Path.Combine(RootDirectory, "logs");
 
     public static string LogFile => Path.Combine(LogDirectory, "agent-.log");
+
+    /// <summary>The helper runs as the user, who has no access to the service's log directory.</summary>
+    public static string SessionAgentLogFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "HAActiveUser",
+        "session-agent.log");
 }
 
 [SupportedOSPlatform("windows")]

@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <Version>1.0.0</Version>
+    <Version>1.1.1</Version>
     <Authors>HA-ActiveUserForWindows contributors</Authors>
     <Product>HA Active User for Windows</Product>
     <RepositoryUrl>https://github.com/stephenmann/HA-ActiveUserForWindows</RepositoryUrl>

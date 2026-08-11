@@ -26,6 +26,8 @@ public sealed class UserInputPipeServer(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        WarmUpIdentityTypes();
+
         while (!stoppingToken.IsCancellationRequested)
         {
             NamedPipeServerStream? server = null;
@@ -110,6 +112,24 @@ public sealed class UserInputPipeServer(
         return null;
     }
 
+    /// <summary>
+    /// Impersonating at identification level yields a token that cannot open files, so an assembly
+    /// first needed inside <see cref="NamedPipeServerStream.RunAsClient"/> fails to load and surfaces
+    /// as a missing file. Touching <see cref="WindowsIdentity"/> here loads it as LocalSystem instead.
+    /// </summary>
+    private void WarmUpIdentityTypes()
+    {
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            _ = identity.User;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not preload the identity types");
+        }
+    }
+
     private string? ResolveClientSid(NamedPipeServerStream server)
     {
         try
@@ -125,7 +145,18 @@ public sealed class UserInputPipeServer(
         }
     }
 
-    private static NamedPipeServerStream CreateServer(string pipeName)
+    private static NamedPipeServerStream CreateServer(string pipeName) =>
+        NamedPipeServerStreamAcl.Create(
+            pipeName,
+            PipeDirection.In,
+            NamedPipeServerStream.MaxAllowedServerInstances,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            inBufferSize: 0,
+            outBufferSize: 0,
+            pipeSecurity: BuildSecurity());
+
+    internal static PipeSecurity BuildSecurity()
     {
         var security = new PipeSecurity();
         security.AddAccessRule(new PipeAccessRule(
@@ -136,19 +167,16 @@ public sealed class UserInputPipeServer(
             new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
             PipeAccessRights.FullControl,
             AccessControlType.Allow));
+        // A client opening for write asks for GENERIC_WRITE, which maps to FILE_GENERIC_WRITE and so
+        // includes READ_CONTROL. Without ReadPermissions here, only elevated callers get in.
         security.AddAccessRule(new PipeAccessRule(
             new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
-            PipeAccessRights.Write | PipeAccessRights.ReadAttributes | PipeAccessRights.Synchronize,
+            PipeAccessRights.Write
+                | PipeAccessRights.ReadAttributes
+                | PipeAccessRights.ReadPermissions
+                | PipeAccessRights.Synchronize,
             AccessControlType.Allow));
 
-        return NamedPipeServerStreamAcl.Create(
-            pipeName,
-            PipeDirection.In,
-            NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous,
-            inBufferSize: 0,
-            outBufferSize: 0,
-            pipeSecurity: security);
+        return security;
     }
 }

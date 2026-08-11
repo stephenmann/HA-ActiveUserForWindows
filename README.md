@@ -471,9 +471,14 @@ message should be on `homeassistant/device/<device>/config`.
 **A person shows as occupied on the wrong machine.** Both machines are reporting truthfully — use
 the Group helper and the template sensor above rather than trying to make one agent yield.
 
-**Idle time never rises, or sits at 0.** The idle figure comes from the per-user helper, not from
-Windows' per-session bookkeeping. Check the helper is running (`--session-agent`, one instance per
-signed-in user) and that the session shows as `Active` with `--list-accounts`.
+**Idle time never rises, or reads -1.** The idle figure comes from the per-user helper, not from
+Windows' per-session bookkeeping, and `-1` means the service has no reports at all. Note that
+`--list-accounts` is no help here: it reads the raw Terminal Services value, which stays frozen at
+logon on a local console session. Check the helper is running (`--session-agent`, one instance per
+signed-in user), then read `%LOCALAPPDATA%\HAActiveUser\session-agent.log` — the helper records why
+it could not connect there, because it runs as you and cannot write to the service's log directory.
+The service log will say either `No idle reports from <account>` or `Receiving idle reports from
+<account>`.
 
 **The device is stuck in Home Assistant after uninstall.** Publish an empty retained payload to
 `homeassistant/device/<device>/config`, or reinstall and run `--remove-from-ha`.

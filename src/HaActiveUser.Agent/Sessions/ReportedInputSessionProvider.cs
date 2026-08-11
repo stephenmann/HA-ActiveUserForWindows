@@ -36,7 +36,13 @@ public sealed class ReportedInputSessionProvider(
 
         if (tracker.LastInputFor(sid) is { } reported)
         {
-            _warnedAbout.Remove(sid);
+            // The warning below is logged once per SID, so without this the log looks identical
+            // whether reports started flowing or never arrived again.
+            if (_warnedAbout.Remove(sid))
+            {
+                logger.LogInformation("Receiving idle reports from {Account}", session.Account);
+            }
+
             return session with { LastInputUtc = reported };
         }
 

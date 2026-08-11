@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using HaActiveUser.Agent.Sessions;
 using HaActiveUser.Agent.Sessions.UserInput;
@@ -152,5 +153,49 @@ public class UserInputPipeServerTests
         }
 
         return null;
+    }
+}
+
+public class UserInputPipeSecurityTests
+{
+    /// <summary>
+    /// The round-trip test above cannot catch a too-narrow DACL: it connects as the pipe's own
+    /// creator, and an owner is granted READ_CONTROL whatever the DACL says. A non-elevated logon
+    /// helper is not the owner, so the granted rights are asserted directly.
+    /// </summary>
+    [Fact]
+    public void AuthenticatedUsersMayOpenTheIdleReportPipeForWriting()
+    {
+        var authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
+
+        var granted = UserInputPipeServer.BuildSecurity()
+            .GetAccessRules(includeExplicit: true, includeInherited: false, typeof(SecurityIdentifier))
+            .Cast<PipeAccessRule>()
+            .Where(rule => rule.IdentityReference.Equals(authenticatedUsers)
+                && rule.AccessControlType == AccessControlType.Allow)
+            .Aggregate(default(PipeAccessRights), (rights, rule) => rights | rule.PipeAccessRights);
+
+        // GENERIC_WRITE maps to FILE_GENERIC_WRITE, and the access check needs every mapped bit.
+        const PipeAccessRights RequiredForGenericWrite =
+            PipeAccessRights.Write | PipeAccessRights.ReadPermissions | PipeAccessRights.Synchronize;
+
+        Assert.Equal(RequiredForGenericWrite, granted & RequiredForGenericWrite);
+    }
+
+    [Fact]
+    public void AuthenticatedUsersMayNotReadOtherUsersReports()
+    {
+        var authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
+
+        var granted = UserInputPipeServer.BuildSecurity()
+            .GetAccessRules(includeExplicit: true, includeInherited: false, typeof(SecurityIdentifier))
+            .Cast<PipeAccessRule>()
+            .Where(rule => rule.IdentityReference.Equals(authenticatedUsers)
+                && rule.AccessControlType == AccessControlType.Allow)
+            .Aggregate(default(PipeAccessRights), (rights, rule) => rights | rule.PipeAccessRights);
+
+        Assert.Equal(default, granted & PipeAccessRights.ReadData);
+        Assert.Equal(default, granted & PipeAccessRights.ChangePermissions);
+        Assert.Equal(default, granted & PipeAccessRights.TakeOwnership);
     }
 }

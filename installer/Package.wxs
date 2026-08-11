@@ -12,7 +12,13 @@
 
     <SummaryInformation Description="Reports Windows session activity to Home Assistant over MQTT." />
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <!--
+      AllowSameVersionUpgrades: without it, reinstalling a rebuilt MSI whose version has not changed
+      lands alongside the existing install instead of replacing it, leaving two entries and stale files.
+    -->
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <Launch

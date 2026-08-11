@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text;
+using HaActiveUser.Agent.Configuration;
 using static HaActiveUser.Agent.Sessions.Native.UserInputNativeMethods;
 
 namespace HaActiveUser.Agent.Sessions.UserInput;
@@ -16,6 +17,8 @@ namespace HaActiveUser.Agent.Sessions.UserInput;
 [SupportedOSPlatform("windows")]
 public static class SessionAgent
 {
+    private static string? _lastNote;
+
     public static async Task<int> RunAsync(CancellationToken cancellationToken)
     {
         HideOwnConsoleWindow();
@@ -30,9 +33,11 @@ public static class SessionAgent
             {
                 return 0;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // The service may be stopped, restarting, or upgrading; keep trying quietly.
+                // A restarting service and a permanently wrong pipe ACL look identical from here,
+                // so the reason is recorded rather than swallowed.
+                Note(Describe(ex));
             }
 
             try
@@ -62,6 +67,8 @@ public static class SessionAgent
         await client.ConnectAsync((int)TimeSpan.FromSeconds(10).TotalMilliseconds, cancellationToken)
             .ConfigureAwait(false);
 
+        Note("Connected to the service; reporting idle time.");
+
         await using var writer = new StreamWriter(client, new UTF8Encoding(false)) { AutoFlush = true };
 
         while (!cancellationToken.IsCancellationRequested)
@@ -73,6 +80,49 @@ public static class SessionAgent
                 .ConfigureAwait(false);
 
             await Task.Delay(UserInputProtocol.ReportInterval, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static string Describe(Exception ex) => ex switch
+    {
+        UnauthorizedAccessException =>
+            "Access to the idle-report pipe was denied. The service is refusing reports from this "
+            + "account, which usually means it is running an older build than this helper.",
+        TimeoutException => "Timed out connecting to the idle-report pipe; the service may be stopped.",
+        _ => $"{ex.GetType().Name}: {ex.Message}"
+    };
+
+    /// <summary>
+    /// Writes to a per-user file because this runs as the user, who cannot see the service's log,
+    /// and with a hidden console has nowhere else to report. Repeats are dropped so a permanent
+    /// failure does not grow the file every ten seconds.
+    /// </summary>
+    private static void Note(string message)
+    {
+        if (message == _lastNote)
+        {
+            return;
+        }
+
+        _lastNote = message;
+
+        try
+        {
+            var path = ConfigPaths.SessionAgentLogFile;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+            if (new FileInfo(path) is { Exists: true, Length: > 64 * 1024 })
+            {
+                File.Delete(path);
+            }
+
+            File.AppendAllText(
+                path,
+                $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz} {message}{Environment.NewLine}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Reporting idle time matters more than recording that we could not say so.
         }
     }
 

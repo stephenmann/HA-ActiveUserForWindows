@@ -3,7 +3,44 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.1] - 2026-08-10
+
+### Fixed
+
+- **Occupancy never turned on, and idle time read -1.** The named pipe's DACL granted Authenticated
+  Users `Write | ReadAttributes | Synchronize`. Opening a pipe for writing requests `GENERIC_WRITE`,
+  which maps to `FILE_GENERIC_WRITE` — including `READ_CONTROL`, which was missing — and the access
+  check requires every mapped bit. Every non-elevated helper was denied; running one elevated worked,
+  which is what made this look like anything but a permissions problem. `ReadPermissions` is now
+  granted. Read and ACL-write rights are still withheld.
+- **The helper failed silently.** It swallowed every exception, so a permanent access-denied was
+  indistinguishable from a service restart. It now classifies the failure and writes it to
+  `%LOCALAPPDATA%\HAActiveUser\session-agent.log` — a per-user path, because the helper runs as you
+  and cannot write to the service's log directory, which is exactly why this failure was invisible.
+  Repeated messages are suppressed, and recovery is logged. It still never throws out of its loop.
+- **Reinstalling an MSI of the same version installed a second copy** alongside the first, leaving two
+  entries in Programs and Features and stale files. `AllowSameVersionUpgrades` is now set, and the
+  product version is no longer pinned at 1.0.0 — 1.0.1 and 1.1.0 both shipped an MSI identifying
+  itself as 1.0.0, so `MajorUpgrade` had nothing to compare and never replaced the previous install.
+
+## [1.1.0] - 2026-08-10
+
+### Added
+
+**Idle detection that works on a local console**
+
+- A per-user helper (`--session-agent`) reports idle time to the service over a named pipe.
+  `WTSINFOEX.LastInputTime` is maintained only for remote sessions; on a local console it is frozen
+  at logon, so idle time never rose and occupancy never cleared. `GetLastInputInfo` is the accurate
+  source but is per-session, and the service runs in session 0.
+- The service attributes each report to the SID of the connecting process rather than trusting
+  anything in the payload, so one user cannot report activity on another's behalf.
+
+**Signed releases**
+
+- The MSI is signed with Azure Artifact Signing via OIDC, with no stored credentials. Workflow
+  actions are pinned to commit SHAs, and the packaging job is bound to a `release` environment so a
+  single Azure federated credential covers every release regardless of branch or tag.
 
 ### Fixed
 
@@ -15,6 +52,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   but it is written by the service under LocalSystem, so it recorded the machine account (`MACHINE$`).
   No interactive session could ever match it, and presence silently stayed off. The default is now
   taken from the signed-in session and records the SID.
+
+## [1.0.1] - 2026-08-10
+
+### Fixed
+
 - **A plaintext password in the config crash-looped the service.** `Mqtt.ProtectedPassword` expects a
   DPAPI blob; a hand-typed value threw inside a DI factory during host start, producing a stack trace
   every 30 seconds. Secrets are now validated before startup and reported as a single actionable line,
@@ -117,4 +159,7 @@ install the MSI, point it at your broker, and the device and its entities appear
 - `WTSINFOEX.LastInputTime` can be zero on some session types; idle time is published as `0` in that
   case.
 
+[1.2.0]: https://github.com/stephenmann/HA-ActiveUserForWindows/releases/tag/v1.2.0
+[1.1.0]: https://github.com/stephenmann/HA-ActiveUserForWindows/releases/tag/v1.1.0
+[1.0.1]: https://github.com/stephenmann/HA-ActiveUserForWindows/releases/tag/v1.0.1
 [1.0.0]: https://github.com/stephenmann/HA-ActiveUserForWindows/releases/tag/v1.0.0
