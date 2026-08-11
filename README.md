@@ -480,56 +480,7 @@ signed-in user) and that the session shows as `Active` with `--list-accounts`.
 
 ---
 
-## Release signing
 
-The `package` job signs the agent executable and then the MSI using **Azure Artifact Signing** (the
-service previously called Trusted Signing). Both steps are skipped unless `AZURE_CLIENT_ID` is set,
-so the workflow still builds unsigned on a fork.
-
-Authentication uses OIDC rather than a stored credential: the job requests a short-lived token from
-GitHub and Azure exchanges it for one scoped to the certificate profile. Nothing long-lived is kept
-in the repository, which is the point — a leaked client secret would let anyone sign code as you.
-
-### One-time Azure setup
-
-1. Register an app in Entra ID and add a **federated credential** of type *GitHub Actions*, with the
-   entity matching how you release (`Branch: main`, or `Tag: v*`, or `Environment`). The subject must
-   match the triggering ref or Azure refuses the exchange.
-2. Grant that app the **Artifact Signing Certificate Profile Signer** role on the signing account or,
-   more narrowly, on the certificate profile itself. This role is required; Owner and Contributor do
-   not imply it.
-
-### Repository configuration
-
-Secrets (**Settings → Secrets and variables → Actions → Secrets**):
-
-| Secret | Value |
-| --- | --- |
-| `AZURE_CLIENT_ID` | Application (client) ID of the app registration |
-| `AZURE_TENANT_ID` | Directory (tenant) ID |
-| `AZURE_SUBSCRIPTION_ID` | Subscription holding the signing account |
-
-Variables (**same page → Variables**) — not secret, they just vary per account:
-
-| Variable | Value |
-| --- | --- |
-| `AZURE_SIGNING_ENDPOINT` | Region endpoint, e.g. `https://eus.codesigning.azure.net` |
-| `AZURE_SIGNING_ACCOUNT` | Signing account name |
-| `AZURE_SIGNING_PROFILE` | Certificate profile name |
-
-The endpoint region must match the region the account **and** profile were created in. A mismatch
-fails as a 403 rather than as anything that names the real problem.
-
-### Things that will bite you
-
-- Certificates issued by the service are valid for **three days**. The workflow timestamps against
-  `http://timestamp.acs.microsoft.com`; without that a signature would go invalid almost immediately.
-- A Public Trust profile requires completed identity validation, and the certificate subject is taken
-  from that validated identity — you cannot set it yourself.
-- SmartScreen reputation accrues per publisher identity, so the first few signed releases may still
-  warn.
-
----
 
 ## License
 

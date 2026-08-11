@@ -16,3 +16,4 @@ installer/obj/
 ## Local
 *.log
 .github/plans
+docs/internal-docs
