@@ -3,6 +3,14 @@
 All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- The per-user input reporter now runs as a tray application at logon instead of briefly opening a
+  console window. The icon shows whether it is connected to the service, opens the per-user log on
+  demand, and prevents duplicate instances within the same Windows session.
+
 ## [1.1.1] - 2026-08-10
 
 ### Fixed

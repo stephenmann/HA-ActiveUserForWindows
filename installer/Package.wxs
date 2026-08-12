@@ -73,16 +73,20 @@
           Remove="uninstall"
           Wait="yes" />
 
-        <!--
-          The service runs in session 0, where GetLastInputInfo only sees session 0. Each interactive
-          user runs a helper that reports its own idle time back over a named pipe.
-        -->
+      </Component>
+
+      <!--
+        The service runs in session 0, where GetLastInputInfo only sees session 0. Each interactive
+        user runs a tray helper that reports its own idle time back over a named pipe.
+      -->
+      <Component Id="SessionAgentExecutable" Directory="INSTALLFOLDER" Bitness="always64">
+        <File Id="SessionAgentExe" Source="$(var.SessionAgentPublishDir)HaActiveUser.SessionAgent.exe" KeyPath="yes" />
         <RegistryValue
           Root="HKLM"
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
           Name="HAActiveUserSessionAgent"
           Type="string"
-          Value="&quot;[INSTALLFOLDER]HaActiveUser.Agent.exe&quot; --session-agent" />
+          Value="&quot;[INSTALLFOLDER]HaActiveUser.SessionAgent.exe&quot;" />
       </Component>
 
       <!--

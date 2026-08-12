@@ -5,9 +5,10 @@
     <OutputType>Package</OutputType>
     <InstallerPlatform>x64</InstallerPlatform>
     <SuppressIces>ICE61</SuppressIces>
-    <!-- The agent is published as a single file, so the package is one exe and no harvesting. -->
+    <!-- Both applications are single-file publishes, so no harvesting is required. -->
     <AgentPublishDir Condition="'$(AgentPublishDir)' == ''">$(MSBuildThisFileDirectory)..\src\HaActiveUser.Agent\bin\Release\net8.0-windows\win-x64\publish\</AgentPublishDir>
-    <DefineConstants>AgentPublishDir=$(AgentPublishDir);ProductVersion=$(Version)</DefineConstants>
+    <SessionAgentPublishDir Condition="'$(SessionAgentPublishDir)' == ''">$(MSBuildThisFileDirectory)..\src\HaActiveUser.SessionAgent\bin\Release\net8.0-windows\win-x64\publish\</SessionAgentPublishDir>
+    <DefineConstants>AgentPublishDir=$(AgentPublishDir);SessionAgentPublishDir=$(SessionAgentPublishDir);ProductVersion=$(Version)</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +19,9 @@
     <Error
       Condition="!Exists('$(AgentPublishDir)HaActiveUser.Agent.exe')"
       Text="Publish the agent first: pwsh ./build/publish-agent.ps1 (expected $(AgentPublishDir)HaActiveUser.Agent.exe)" />
+    <Error
+      Condition="!Exists('$(SessionAgentPublishDir)HaActiveUser.SessionAgent.exe')"
+      Text="Publish the session agent first: pwsh ./build/publish-agent.ps1 (expected $(SessionAgentPublishDir)HaActiveUser.SessionAgent.exe)" />
   </Target>
 
 </Project>

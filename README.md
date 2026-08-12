@@ -75,10 +75,11 @@ This is the part Windows makes awkward. `GetLastInputInfo` is per-session, and t
 `WTSQuerySessionInformationW(..., WTSSessionInfoEx)`, returns a `LastInputTime` that is **frozen at
 logon for local console sessions** — it only advances for remote/RDP sessions.
 
-So the installer registers a lightweight per-user helper (`--session-agent`) at logon. It runs inside
-the interactive session, where `GetLastInputInfo` works, and reports its own idle time to the service
-every few seconds over a named pipe. The service attributes each report to the SID of the connecting
-process, so a user can only ever report their own state.
+So the installer registers a lightweight per-user tray application at logon. It runs inside the
+interactive session, where `GetLastInputInfo` works, and reports its own idle time to the service
+every few seconds over a named pipe. Its tray icon shows whether it is connected to the service and
+provides access to its per-user log without opening a console window. The service attributes each
+report to the SID of the connecting process, so a user can only ever report their own state.
 
 The service still uses WTS for everything that *is* reliable from session 0: which sessions exist,
 their accounts, connect state and lock flag.

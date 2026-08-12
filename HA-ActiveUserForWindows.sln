@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaActiveUser.Agent", "src\H
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaActiveUser.Agent.Tests", "src\HaActiveUser.Agent.Tests\HaActiveUser.Agent.Tests.csproj", "{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaActiveUser.SessionAgent", "src\HaActiveUser.SessionAgent\HaActiveUser.SessionAgent.csproj", "{11E61AA1-75D9-4317-BF63-711E366C02CA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,9 +28,14 @@ Global
 		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11E61AA1-75D9-4317-BF63-711E366C02CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11E61AA1-75D9-4317-BF63-711E366C02CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11E61AA1-75D9-4317-BF63-711E366C02CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11E61AA1-75D9-4317-BF63-711E366C02CA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{FA3503F9-3C69-48D7-8C33-FCC6C5839252} = {CB2AE018-F6BC-4E0F-B71A-A706BF1AC85C}
 		{BECB4B68-0DC1-47CE-B215-6AA2A3EA54BF} = {CB2AE018-F6BC-4E0F-B71A-A706BF1AC85C}
+		{11E61AA1-75D9-4317-BF63-711E366C02CA} = {CB2AE018-F6BC-4E0F-B71A-A706BF1AC85C}
 	EndGlobalSection
 EndGlobal

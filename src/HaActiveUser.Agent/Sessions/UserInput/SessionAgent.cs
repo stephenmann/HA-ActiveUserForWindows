@@ -18,6 +18,9 @@ namespace HaActiveUser.Agent.Sessions.UserInput;
 public static class SessionAgent
 {
     private static string? _lastNote;
+    private static SessionAgentStatus _status = new("Starting", false);
+
+    public static SessionAgentStatus Status => Volatile.Read(ref _status);
 
     public static async Task<int> RunAsync(CancellationToken cancellationToken)
     {
@@ -37,7 +40,7 @@ public static class SessionAgent
             {
                 // A restarting service and a permanently wrong pipe ACL look identical from here,
                 // so the reason is recorded rather than swallowed.
-                Note(Describe(ex));
+                Note(Describe(ex), connected: false);
             }
 
             try
@@ -67,7 +70,7 @@ public static class SessionAgent
         await client.ConnectAsync((int)TimeSpan.FromSeconds(10).TotalMilliseconds, cancellationToken)
             .ConfigureAwait(false);
 
-        Note("Connected to the service; reporting idle time.");
+        Note("Connected to the service; reporting idle time.", connected: true);
 
         await using var writer = new StreamWriter(client, new UTF8Encoding(false)) { AutoFlush = true };
 
@@ -97,8 +100,10 @@ public static class SessionAgent
     /// and with a hidden console has nowhere else to report. Repeats are dropped so a permanent
     /// failure does not grow the file every ten seconds.
     /// </summary>
-    private static void Note(string message)
+    private static void Note(string message, bool connected)
     {
+        Volatile.Write(ref _status, new SessionAgentStatus(message, connected));
+
         if (message == _lastNote)
         {
             return;
@@ -158,3 +163,5 @@ public static class SessionAgent
         return TimeSpan.FromMilliseconds(elapsed);
     }
 }
+
+public sealed record SessionAgentStatus(string Message, bool IsConnected);
